@@ -401,28 +401,6 @@ class GenericLogger:
         self.console_logger = console_logger
         self.csv = self.save_dir / "results.csv"  # CSV logger
         self.opt = opt
-        self.keys = [
-            "train/box_loss",
-            "train/obj_loss",
-            "train/cls_loss",  # train loss
-            "metrics/precision",
-            "metrics/recall",
-            "metrics/mAP_0.5",
-            "metrics/mAP_0.5:0.95",  # metrics
-            # "val/box_loss",
-            # "val/obj_loss",
-            # "val/cls_loss",  # val loss
-            # "x/lr0",
-            # "x/lr1",
-            # "x/lr2",
-        ]  # params
-        self.best_keys = [
-            "best/epoch",
-            "best/precision",
-            "best/recall",
-            "best/mAP_0.5",
-            "best/mAP_0.5:0.95",
-        ]
 
         # TensorBoard
         if "tb" in self.include:
@@ -444,7 +422,6 @@ class GenericLogger:
             self.wandb = None
         # Comet
         if comet_ml and "comet" in self.include:
-            opt.save_period = 5
             opt.upload_dataset = False
             opt.resume = False
             self.comet_logger = CometClassifyLogger(opt)
@@ -452,18 +429,17 @@ class GenericLogger:
         else:
             self.comet_logger = None
 
-    def on_train_batch_end(self, vals, epoch):
-        log_dict = dict(zip(self.keys[:3], vals))
-        if self.comet_logger:
-            self.comet_logger.on_train_batch_end(log_dict, step=epoch)
-
     def on_train_epoch_end(self, epoch):
         if self.comet_logger:
-            self.comet_logger.on_train_epoch_end(epoch)
+            self.comet_logger.on_train_epoch_end(epoch)  
 
-    def on_val_end(self, results, epoch):
-        val_results = dict(zip(self.keys[3:], results))
-        # if self.comet_logger:
+    def on_train_end(self, save_dir, last, best, epoch):
+        if self.comet_logger:
+            self.comet_logger.on_train_end(save_dir, last, best, epoch)
+
+    def on_val_end(self, results):
+        if self.comet_logger:
+            self.comet_logger.on_val_end(results)
 
     def log_metrics(self, metrics, epoch):
         # Log metrics dictionary to all loggers
@@ -506,24 +482,17 @@ class GenericLogger:
             )
         if self.comet_logger:
             for f in files:
-                native_scale_image = PIL.Image.open(f)
-                self.comet_logger.log_image(native_scale_image, name=f.name)
+                self.comet_logger.log_image(f, name=f.name)
 
     def log_graph(self, model, imgsz=(640, 640)):
         # Log model graph to all loggers
         if self.tb:
             log_tensorboard_graph(self.tb, model, imgsz)
 
-    def log_model(self, model_path, epoch=0, metadata={}):
+    def log_model(self, model_path, fitness, epoch=0):
         # Log model to all loggers
-        if self.wandb:
-            art = wandb.Artifact(
-                name=f"run_{wandb.run.id}_model", type="model", metadata=metadata
-            )
-            art.add_file(str(model_path))
-            wandb.log_artifact(art)
         if self.comet_logger:
-            self.comet_logger.log_model(model_path, self.opt, epoch, [1])
+            self.comet_logger.log_model(model_path, self.opt, epoch, fitness)
 
     def update_params(self, params):
         # Update the parameters logged

@@ -59,7 +59,7 @@ def run(
     imgsz=224,  # inference size (pixels)
     device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
     workers=8,  # max dataloader workers (per RANK in DDP mode)
-    verbose=True,  # verbose output
+    verbose=False,  # verbose output
     project=ROOT / "runs/val-cls",  # save to project/name
     name="exp",  # save to project/name
     exist_ok=False,  # existing project/name ok, do not increment
@@ -132,8 +132,10 @@ def run(
     bar = tqdm(
         dataloader, desc, n, not training, bar_format=TQDM_BAR_FORMAT, position=0
     )
+
     with torch.cuda.amp.autocast(enabled=device.type != "cpu"):
         for images, labels in bar:
+
             with dt[0]:
                 images, labels = images.to(device, non_blocking=True), labels.to(device)
 
@@ -148,6 +150,10 @@ def run(
 
     loss /= n
     pred, targets = torch.cat(pred), torch.cat(targets)
+    preds = torch.max(pred, 1)[1]
+
+
+
     correct = (targets[:, None] == pred).float()
 
     acc = torch.stack(
@@ -174,7 +180,7 @@ def run(
             % t
         )
 
-    return top1, top5, loss
+    return file, (model.names, targets, acc, top1, top5, loss)
 
 
 def parse_opt():

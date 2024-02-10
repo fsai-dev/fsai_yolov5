@@ -283,13 +283,16 @@ def train(opt, device, callbacks=Callbacks()):
 
                 # Test
                 if i == len(pbar) - 1:  # last batch
-                    top1, top5, vloss = validate.run(
+                    file, results = validate.run(
                         model=ema.ema,
                         dataloader=val_loader,
                         criterion=criterion,
                         pbar=pbar,
-                    )  # test accuracy, loss
+                    )
+                    _, _, _, top1, top5, vloss = results
                     fitness = top1  # define fitness as top1 accuracy
+                    logger.on_val_end(results)
+                    logger.log_images(file, name=Path(file).name, epoch=epoch)
 
         # Scheduler
         scheduler.step()
@@ -332,8 +335,10 @@ def train(opt, device, callbacks=Callbacks()):
                 torch.save(ckpt, last)
                 if best_fitness == fitness:
                     torch.save(ckpt, best)
+                    logger.log_model(best, best_fitness, epoch)
                 if opt.save_period > 0 and epoch % opt.save_period == 0:
                     torch.save(ckpt, wdir / f"epoch{epoch}.pt")
+                    logger.log_model(wdir / f"epoch{epoch}.pt", fitness, epoch)
                 del ckpt
 
     # Train complete
@@ -359,17 +364,12 @@ def train(opt, device, callbacks=Callbacks()):
             pred,
             de_parallel(model).names,
             verbose=False,
-            f=save_dir / "test_images.jpg",
+            f=save_dir / "test_images(true-pred).jpg",
         )
 
         # Log results
-        meta = {
-            "epochs": epochs,
-            "top1_acc": best_fitness,
-            "date": datetime.now().isoformat(),
-        }
         logger.log_images(file, name="Test Examples (true-predicted)", epoch=epoch)
-        logger.log_model(best, epochs, metadata=meta)
+        logger.on_train_end(save_dir, last, best, epoch)
 
 
 def parse_opt(known=False):
@@ -459,6 +459,12 @@ def parse_opt(known=False):
         type=int,
         default=-1,
         help="Automatic DDP Multi-GPU argument, do not modify",
+    )
+    parser.add_argument(
+        "--save-period",
+        type=int,
+        default=-1,
+        help="Save checkpoint every x epochs (disabled if < 1)",
     )
     return parser.parse_known_args()[0] if known else parser.parse_args()
 

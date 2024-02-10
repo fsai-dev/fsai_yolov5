@@ -717,25 +717,19 @@ class CometClassifyLogger:
     def log_image(self, img, **kwargs):
         self.experiment.log_image(img, **kwargs)
 
-    def log_model(self, path, opt, epoch, fitness_score, best_model=False):
-        if not self.save_model:
-            return
-
+    def log_model(self, model_path, opt, epoch, fitness_score):
         model_metadata = {
-            "fitness_score": fitness_score[-1],
+            "fitness_score": fitness_score,
             "epochs_trained": epoch + 1,
             "total_epochs": opt.epochs,
         }
-
-        model_files = glob.glob(f"{path.parent}/*.pt")
-        for model_path in model_files:
-            name = Path(model_path).name
-
+        model_path = str(model_path)
+        name = Path(model_path).name
+        if self.save_model:
             self.experiment.log_model(
                 self.model_name,
                 file_or_folder=model_path,
                 file_name=name,
-                metadata=model_metadata,
                 overwrite=True,
             )
 
@@ -869,44 +863,35 @@ class CometClassifyLogger:
 
     def on_train_epoch_end(self, epoch):
         self.experiment.curr_epoch = epoch
-
         return
 
     def on_train_batch_start(self):
         return
 
-    def on_train_batch_end(self, log_dict, step):
+    def on_train_batch_end(self, step):
         self.experiment.curr_step = step
-        if self.log_batch_metrics and (step % self.comet_log_batch_interval == 0):
-            self.log_metrics(log_dict, step=step)
         return
 
-    def on_train_end(self, files, save_dir, last, best, epoch, results):
-        if self.comet_log_predictions:
-            curr_epoch = self.experiment.curr_epoch
-            self.experiment.log_asset_data(
-                self.metadata_dict, "image-metadata.json", epoch=curr_epoch
-            )
-
-        for f in files:
-            self.log_asset(f, metadata={"epoch": epoch})
+    def on_train_end(self, save_dir, last, best, epoch):
         self.log_asset(f"{save_dir}/results.csv", metadata={"epoch": epoch})
 
-        if not self.opt.evolve:
-            model_path = str(best if best.exists() else last)
+        if self.save_model:
+            model_path = str(best)
             name = Path(model_path).name
-            if self.save_model:
-                self.experiment.log_model(
-                    self.model_name,
-                    file_or_folder=model_path,
-                    file_name=name,
-                    overwrite=True,
-                )
-
-        # Check if running Experiment with Comet Optimizer
-        if hasattr(self.opt, "comet_optimizer_id"):
-            metric = results.get(self.opt.comet_optimizer_metric)
-            self.experiment.log_other("optimizer_metric_value", metric)
+            self.experiment.log_model(
+                self.model_name,
+                file_or_folder=model_path,
+                file_name=name,
+                overwrite=True,
+            )
+            model_path = str(last)
+            name = Path(model_path).name
+            self.experiment.log_model(
+                self.model_name,
+                file_or_folder=model_path,
+                file_name=name,
+                overwrite=True,
+            )
 
         self.finish_run()
 
@@ -919,51 +904,32 @@ class CometClassifyLogger:
     def on_val_batch_end(self):
         return
 
-    def on_val_end(self, nt, tp, fp, p, r, f1, ap, ap50, ap_class, confusion_matrix):
+    def on_val_end(self, results):
+        model_class_names, targets, accuracy, top1, top5, loss = results
+        self.experiment.log_metrics(
+            {
+                "metrics/accuracy_top1": float(f"{top1:>12.3g}"),
+                "metrics/accuracy_top5": float(f"{top5:>12.3g}"),
+                "metrics/val_loss": loss,
+            },
+            prefix="all",
+        )
         if self.comet_log_per_class_metrics:
             if self.num_classes > 1:
-                for i, c in enumerate(ap_class):
-                    class_name = self.class_names[c]
+                for i in range(len(model_class_names)):
+                    class_name = model_class_names[i]
+                    acc_i = accuracy[targets == i]
+                    top1i, top5i = acc_i.mean(0).tolist()
                     self.experiment.log_metrics(
                         {
-                            "mAP@.5": ap50[i],
-                            "mAP@.5:.95": ap[i],
-                            "precision": p[i],
-                            "recall": r[i],
-                            "f1": f1[i],
-                            "true_positives": tp[i],
-                            "false_positives": fp[i],
-                            "support": nt[c],
+                            "metrics/accuracy_top1": float(f"{top1i:>12.3g}"),
+                            "metrics/accuracy_top5": float(f"{top5i:>12.3g}"),
                         },
                         prefix=class_name,
                     )
 
-        if self.comet_log_confusion_matrix:
-            epoch = self.experiment.curr_epoch
-            class_names = list(self.class_names.values())
-            class_names.append("background")
-            num_classes = len(class_names)
-
-            self.experiment.log_confusion_matrix(
-                matrix=confusion_matrix.matrix,
-                max_categories=num_classes,
-                labels=class_names,
-                epoch=epoch,
-                column_label="Actual Category",
-                row_label="Predicted Category",
-                file_name=f"confusion-matrix-epoch-{epoch}.json",
-            )
-
     def on_fit_epoch_end(self, result, epoch):
         self.log_metrics(result, epoch=epoch)
-
-    def on_model_save(self, last, epoch, final_epoch, best_fitness, fi):
-        if (
-            (epoch + 1) % self.opt.save_period == 0 and not final_epoch
-        ) and self.opt.save_period != -1:
-            self.log_model(
-                last.parent, self.opt, epoch, fi, best_model=best_fitness == fi
-            )
 
     def on_params_update(self, params):
         self.log_parameters(params)
