@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+from statistics import mean
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -904,29 +905,34 @@ class CometClassifyLogger:
     def on_val_batch_end(self):
         return
 
-    def on_val_end(self, results):
-        model_class_names, targets, accuracy, top1, top5, loss = results
+    def on_val_end(self, results, epoch):
+        class_names, precision, recall, f1,  vloss = results
         self.experiment.log_metrics(
             {
-                "metrics/accuracy_top1": float(f"{top1:>12.3g}"),
-                "metrics/accuracy_top5": float(f"{top5:>12.3g}"),
-                "metrics/val_loss": loss,
+                "metrics/precision_avg": float(f"{mean(precision):>12.3g}"),
+                "metrics/recall_avg": float(f"{mean(recall):>12.3g}"),
+                "metrics/f1_avg": float(f"{mean(f1):>12.3g}"),
+                "metrics/val_loss": vloss,
             },
             prefix="all",
+            epoch=epoch,
         )
-        if self.comet_log_per_class_metrics:
-            if self.num_classes > 1:
-                for i in range(len(model_class_names)):
-                    class_name = model_class_names[i]
-                    acc_i = accuracy[targets == i]
-                    top1i, top5i = acc_i.mean(0).tolist()
-                    self.experiment.log_metrics(
-                        {
-                            "metrics/accuracy_top1": float(f"{top1i:>12.3g}"),
-                            "metrics/accuracy_top5": float(f"{top5i:>12.3g}"),
-                        },
-                        prefix=class_name,
-                    )
+
+        if self.num_classes > 1:
+            for i in range(len(class_names)):
+                class_name = class_names[i]
+                p = precision[i]
+                r = recall[i]
+                f1_i = f1[i]
+                self.experiment.log_metrics(
+                    {
+                        "metrics/precision": float(f"{p:>12.3g}"),
+                        "metrics/recall": float(f"{r:>12.3g}"),
+                        "metrics/f1": float(f"{f1_i:>12.3g}"),
+                    },
+                    prefix=class_name,
+                    epoch = epoch
+                )
 
     def on_fit_epoch_end(self, result, epoch):
         self.log_metrics(result, epoch=epoch)

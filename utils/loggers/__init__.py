@@ -437,9 +437,9 @@ class GenericLogger:
         if self.comet_logger:
             self.comet_logger.on_train_end(save_dir, last, best, epoch)
 
-    def on_val_end(self, results):
+    def on_val_end(self, results, epoch):
         if self.comet_logger:
-            self.comet_logger.on_val_end(results)
+            self.comet_logger.on_val_end(results, epoch)
 
     def log_metrics(self, metrics, epoch):
         # Log metrics dictionary to all loggers

@@ -283,16 +283,17 @@ def train(opt, device, callbacks=Callbacks()):
 
                 # Test
                 if i == len(pbar) - 1:  # last batch
-                    file, results = validate.run(
+                    results = validate.run(
                         model=ema.ema,
                         dataloader=val_loader,
                         criterion=criterion,
                         pbar=pbar,
+                        verbose=True,
                     )
-                    _, _, _, top1, top5, vloss = results
+                    class_names, precision, recall, f1, top1, vloss = results
+                    results = (class_names, precision, recall, f1, vloss)
                     fitness = top1  # define fitness as top1 accuracy
-                    logger.on_val_end(results)
-                    logger.log_images(file, name=Path(file).name, epoch=epoch)
+                    logger.on_val_end(results, epoch)
 
         # Scheduler
         scheduler.step()
@@ -304,15 +305,10 @@ def train(opt, device, callbacks=Callbacks()):
             if fitness > best_fitness:
                 best_fitness = fitness
 
-            # Log
-            metrics = {
-                "train/loss": tloss,
-                f"{val}/loss": vloss,
-                "metrics/accuracy_top1": top1,
-                "metrics/accuracy_top5": top5,
-                "lr/0": optimizer.param_groups[0]["lr"],
-            }  # learning rate
-            logger.log_metrics(metrics, epoch)
+            logger.log_metrics(
+                {"train/loss": tloss},
+                epoch,
+            )
 
             # Save model
             final_epoch = epoch + 1 == epochs

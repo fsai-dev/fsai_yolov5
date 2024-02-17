@@ -151,8 +151,33 @@ def run(
     loss /= n
     pred, targets = torch.cat(pred), torch.cat(targets)
     preds = torch.max(pred, 1)[1]
+    tp_base = [0] * len(model.names)
+    fp = [0] * len(model.names)
+    fn = [0] * len(model.names)
+    p = [0] * len(model.names)
+    r = [0] * len(model.names)
+    f1 = [0] * len(model.names)
 
+    for i in range(len(preds)):
+        pred_i = preds[i]
+        target_i = targets[i]
+        if pred_i == target_i:
+            tp_base[target_i] += 1
+        if pred_i != target_i:
+            fp[pred_i] += 1
+            fn[target_i] += 1
 
+    # Compute metrics
+    for i in range(len(model.names)):
+        tp = tp_base[i]
+        fp_i = fp[i]
+        fn_i = fn[i]
+        recall = tp / (tp + fn_i)
+        precision = tp / (tp + fp_i)
+        f1_i = 2 * precision * recall / (precision + recall)
+        p[i] = precision
+        r[i] = recall
+        f1[i] = f1_i
 
     correct = (targets[:, None] == pred).float()
 
@@ -162,7 +187,7 @@ def run(
     top1, top5 = acc.mean(0).tolist()
 
     if verbose:  # all classes
-        LOGGER.info(f"{'Class':>24}{'Images':>12}{'top1_acc':>12}{'top5_acc':>12}")
+        LOGGER.info(f"{'Class':>24}{'top1_acc':>12}{'top5_acc':>12}")
         LOGGER.info(f"{'all':>24}{targets.shape[0]:>12}{top1:>12.3g}{top5:>12.3g}")
         for i in range(len(model.names)):
             c = model.names[i]
@@ -180,7 +205,7 @@ def run(
             % t
         )
 
-    return file, (model.names, targets, acc, top1, top5, loss)
+    return (model.names, p, r, f1, top1, loss)
 
 
 def parse_opt():
