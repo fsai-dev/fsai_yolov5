@@ -906,15 +906,14 @@ class CometClassifyLogger:
         return
 
     def on_val_end(self, results, epoch):
-        class_names, precision, recall, f1,  vloss = results
+        class_names, precision, recall, f1, vloss = results
         self.experiment.log_metrics(
             {
-                "metrics/precision_avg": float(f"{mean(precision):>12.3g}"),
-                "metrics/recall_avg": float(f"{mean(recall):>12.3g}"),
-                "metrics/f1_avg": float(f"{mean(f1):>12.3g}"),
+                "metrics/precision": float(f"{mean(precision):>12.3g}"),
+                "metrics/recall": float(f"{mean(recall):>12.3g}"),
+                "metrics/f1": float(f"{mean(f1):>12.3g}"),
                 "metrics/val_loss": vloss,
             },
-            prefix="all",
             epoch=epoch,
         )
 
@@ -931,7 +930,7 @@ class CometClassifyLogger:
                         "metrics/f1": float(f"{f1_i:>12.3g}"),
                     },
                     prefix=class_name,
-                    epoch = epoch
+                    epoch=epoch,
                 )
 
     def on_fit_epoch_end(self, result, epoch):

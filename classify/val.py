@@ -22,6 +22,7 @@ Usage - formats:
 
 import argparse
 import os
+from statistics import mean
 import sys
 import numpy as np
 from pathlib import Path
@@ -168,32 +169,31 @@ def run(
             fn[target_i] += 1
 
     # Compute metrics
+    correct = (targets[:, None] == pred).float()
+    acc = torch.stack(
+        (correct[:, 0], correct.max(1).values), dim=1
+    )  # (top1, top5) accuracy
+    top1, top5 = acc.mean(0).tolist()
     for i in range(len(model.names)):
         tp = tp_base[i]
         fp_i = fp[i]
         fn_i = fn[i]
         recall = tp / (tp + fn_i)
         precision = tp / (tp + fp_i)
-        f1_i = 2 * precision * recall / (precision + recall)
+        if precision + recall == 0:
+            f1_i = 0
+        else:
+            f1_i = 2 * precision * recall / (precision + recall)
         p[i] = precision
         r[i] = recall
         f1[i] = f1_i
 
-    correct = (targets[:, None] == pred).float()
-
-    acc = torch.stack(
-        (correct[:, 0], correct.max(1).values), dim=1
-    )  # (top1, top5) accuracy
-    top1, top5 = acc.mean(0).tolist()
-
     if verbose:  # all classes
-        LOGGER.info(f"{'Class':>24}{'top1_acc':>12}{'top5_acc':>12}")
-        LOGGER.info(f"{'all':>24}{targets.shape[0]:>12}{top1:>12.3g}{top5:>12.3g}")
+        LOGGER.info(f"{'Class':>24}{'precision':>12}{'recall':>12}{'f1':>12}")
+        LOGGER.info(f"{'all':>24}{mean(p):>12.3}{mean(r):>12.3g}{mean(f1):>12.3g}")
         for i in range(len(model.names)):
             c = model.names[i]
-            acc_i = acc[targets == i]
-            top1i, top5i = acc_i.mean(0).tolist()
-            LOGGER.info(f"{c:>24}{acc_i.shape[0]:>12}{top1i:>12.3g}{top5i:>12.3g}")
+            LOGGER.info(f"{c:>24}{p[i]:>12.3}{r[i]:>12.3g}{f1[i]:>12.3g}")
 
         # Print results
         t = tuple(
