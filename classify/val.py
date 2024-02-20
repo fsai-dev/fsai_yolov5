@@ -144,7 +144,7 @@ def run(
                 y = model(images)
 
             with dt[2]:
-                pred.append(y.argsort(1, descending=True)[:, :5])
+                pred.append(y)
                 targets.append(labels)
                 if criterion:
                     loss += criterion(y, labels)
@@ -152,6 +152,8 @@ def run(
     loss /= n
     pred, targets = torch.cat(pred), torch.cat(targets)
     preds = torch.max(pred, 1)[1]
+    preds = preds.cpu().numpy()
+    targets = targets.cpu().numpy()
     tp_base = [0] * len(model.names)
     fp = [0] * len(model.names)
     fn = [0] * len(model.names)
@@ -169,11 +171,6 @@ def run(
             fn[target_i] += 1
 
     # Compute metrics
-    correct = (targets[:, None] == pred).float()
-    acc = torch.stack(
-        (correct[:, 0], correct.max(1).values), dim=1
-    )  # (top1, top5) accuracy
-    top1, top5 = acc.mean(0).tolist()
     for i in range(len(model.names)):
         tp = tp_base[i]
         fp_i = fp[i]
@@ -205,7 +202,7 @@ def run(
             % t
         )
 
-    return (model.names, p, r, f1, top1, loss)
+    return (p, r, f1, loss)
 
 
 def parse_opt():

@@ -18,6 +18,7 @@ import os
 import subprocess
 import numpy as np
 import sys
+from statistics import mean
 import time
 from copy import deepcopy
 from datetime import datetime
@@ -283,16 +284,15 @@ def train(opt, device, callbacks=Callbacks()):
 
                 # Test
                 if i == len(pbar) - 1:  # last batch
-                    results = validate.run(
+                    precision, recall, f1, vloss = validate.run(
                         model=ema.ema,
                         dataloader=val_loader,
                         criterion=criterion,
                         pbar=pbar,
                         verbose=True,
                     )
-                    class_names, precision, recall, f1, top1, vloss = results
-                    results = (class_names, precision, recall, f1, vloss)
-                    fitness = top1  # define fitness as top1 accuracy
+                    results = model.names, precision, recall, f1, vloss
+                    fitness = mean(f1)  # define fitness f1 score
                     logger.on_val_end(results, epoch)
 
         # Scheduler
@@ -362,8 +362,41 @@ def train(opt, device, callbacks=Callbacks()):
             verbose=False,
             f=save_dir / "test_images(true-pred).jpg",
         )
+        labels = labels.cpu().numpy()
+        pred = pred.cpu().numpy()
+
+        tp_base = [0] * len(model.names)
+        fp = [0] * len(model.names)
+        fn = [0] * len(model.names)
+        p = [0] * len(model.names)
+        r = [0] * len(model.names)
+        f1 = [0] * len(model.names)
+
+        for i in range(len(pred)):
+            pred_i = pred[i]
+            target_i = labels[i]
+            if pred_i == target_i:
+                tp_base[target_i] += 1
+            if pred_i != target_i:
+                fp[pred_i] += 1
+                fn[target_i] += 1
+
+        for i in range(len(model.names)):
+            tp = tp_base[i]
+            fp_i = fp[i]
+            fn_i = fn[i]
+            recall = tp / (tp + fn_i)
+            precision = tp / (tp + fp_i)
+            if precision + recall == 0:
+                f1_i = 0
+            else:
+                f1_i = 2 * precision * recall / (precision + recall)
+            p[i] = precision
+            r[i] = recall
+            f1[i] = f1_i
 
         # Log results
+        logger.on_val_end((model.names, p, r, f1, vloss), epoch)
         logger.log_images(file, name="Test Examples (true-predicted)", epoch=epoch)
         logger.on_train_end(save_dir, last, best, epoch)
 
