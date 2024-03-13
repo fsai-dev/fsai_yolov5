@@ -175,10 +175,16 @@ def run(
         tp = tp_base[i]
         fp_i = fp[i]
         fn_i = fn[i]
-        recall = tp / (tp + fn_i)
-        precision = tp / (tp + fp_i)
+        if tp + fn_i == 0:
+            recall = 0.0
+        else:
+            recall = tp / (tp + fn_i)
+        if tp + fp_i == 0:
+            precision = 0.0
+        else:
+            precision = tp / (tp + fp_i)
         if precision + recall == 0:
-            f1_i = 0
+            f1_i = 0.0
         else:
             f1_i = 2 * precision * recall / (precision + recall)
         p[i] = precision
