@@ -1551,6 +1551,8 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
             [
                 self.Resize(imgsz),
                 self.ToTensor(),
+                T.RandomHorizontalFlip(0.50),
+                T.RandomVerticalFlip(0.50),
                 T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
