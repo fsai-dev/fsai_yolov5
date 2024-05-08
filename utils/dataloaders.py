@@ -1553,6 +1553,7 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
                 self.ToTensor(),
                 T.RandomHorizontalFlip(0.50),
                 T.RandomVerticalFlip(0.50),
+                self.Rotate(),
                 T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
@@ -1584,6 +1585,14 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
         else:
             sample = self.torch_transforms(im)
         return sample, j
+
+    class Rotate:
+        def __init__(self):
+            super().__init__()
+
+        def __call__(self, im):
+            rand_angle = random.choice([0, 90, 180, 270])
+            return T.functional.rotate(im, angle=rand_angle)
 
     class Resize:
         # YOLOv5 Resize class for image preprocessing, i.e. T.Compose([Resize(size), ToTensor()])
