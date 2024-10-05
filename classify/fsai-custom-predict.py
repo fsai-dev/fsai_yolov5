@@ -119,7 +119,7 @@ def add_bbox(img, point1, point2, category_name, color):
 def main():
     weights = "/home/ubuntu/data/classify/pylon_tp_fp/best.pt"
     data_yaml = "/home/ubuntu/data/classify/pylon_tp_fp/dataset.yaml"
-    json_path = (
+    coco_results_json_path = (
         "/home/ubuntu/yolo-nas-output/predictions/yolov5/yolov5-predictions.json"
     )
     imgs_dir = "/home/ubuntu/test_images"
@@ -141,7 +141,7 @@ def main():
     bs = 1  # batch_size
     model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))  # warmup
 
-    with open(json_path, "r") as f:
+    with open(coco_results_json_path, "r") as f:
         data = json.load(f)
 
     tmp_imgs_path = os.path.join(output_dir, "tmp")

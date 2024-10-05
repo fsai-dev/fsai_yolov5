@@ -23,8 +23,10 @@ from utils.torch_utils import select_device
 
 
 def main():
-    weights = "../best.pt"
-    data_yaml = "../best.yml"
+    cropped_imgs_dir = "tmp/tp_fp_test_chips"
+    output_dir = "tmp/output"
+    weights = "tmp/pylon_tp_fp_model/epoch90.pt"
+    data_yaml = "tmp/pylon_tp_fp_model/dataset.yaml"
     device = "cpu"  # cuda device, i.e. 0 or 0,1,2,3 or cpu
     imgsz = (224, 224)
 
@@ -38,16 +40,19 @@ def main():
     bs = 1  # batch_size
     model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))  # warmup
 
-    # Get all images from the directory called './crops'
-    directory = os.path.join(ROOT, "crops")
-
     # Get all the images in the directory
-    all_images = os.listdir(directory)
+    all_images = os.listdir(cropped_imgs_dir)
 
     # Get the image paths
-    img_paths = [os.path.join(directory, img) for img in all_images]
+    img_paths = [os.path.join(cropped_imgs_dir, img) for img in all_images]
 
     for img_path in img_paths:
+        if (
+            not img_path.endswith(".jpg")
+            and not img_path.endswith(".png")
+            and not img_path.endswith(".jpeg")
+        ):
+            continue
         print(f"Processing image: {img_path}")
 
         # Dataloader
@@ -83,14 +88,20 @@ def main():
             print(f"Prediction: {prediction_class}")
 
             # If prediction_class = FALSE_POSITIVE then copy to the false_positive directory
+            Path(os.path.join(output_dir, "false_positives")).mkdir(
+                parents=True, exist_ok=True
+            )
+            Path(os.path.join(output_dir, "true_positives")).mkdir(
+                parents=True, exist_ok=True
+            )
             if prediction_class == "FALSE_POSITIVE":
                 print("Copying to false_positive directory")
-                shutil.copy(img_path, os.path.join(ROOT, "false_positives"))
+                shutil.copy(img_path, os.path.join(output_dir, "false_positives"))
 
             # If prediction_class = TRUE_POSITIVE then copy to the true_positive directory
             if prediction_class == "TRUE_POSITIVE":
                 print("Copying to true_positive directory")
-                shutil.copy(img_path, os.path.join(ROOT, "true_positives"))
+                shutil.copy(img_path, os.path.join(output_dir, "true_positives"))
 
 
 if __name__ == "__main__":

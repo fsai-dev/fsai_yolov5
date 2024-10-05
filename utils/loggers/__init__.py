@@ -4,32 +4,22 @@ Logging utils
 """
 
 import os
-import warnings
 from pathlib import Path
-import PIL
 
 import pkg_resources as pkg
-import torch
 
-from utils.general import LOGGER, colorstr, cv2
+
 from utils.loggers.clearml.clearml_utils import ClearmlLogger
 from utils.loggers.wandb.wandb_utils import WandbLogger
 from utils.plots import plot_images, plot_labels, plot_results
-from utils.torch_utils import de_parallel
 
 LOGGERS = (
     "csv",
-    "tb",
     "wandb",
     "clearml",
     "comet",
-)  # *.csv, TensorBoard, Weights & Biases, ClearML
+)  # *.csv, Weights & Biases, ClearML
 RANK = int(os.getenv("RANK", -1))
-
-try:
-    from torch.utils.tensorboard import SummaryWriter
-except ImportError:
-    SummaryWriter = lambda *args: None  # None = SummaryWriter(str)
 
 try:
     import wandb
@@ -117,15 +107,6 @@ class Loggers:
             prefix = colorstr("Comet: ")
             s = f"{prefix}run 'pip install comet_ml' to automatically track and visualize YOLOv5 🚀 runs in Comet"
             self.logger.info(s)
-        # TensorBoard
-        s = self.save_dir
-        if "tb" in self.include and not self.opt.evolve:
-            prefix = colorstr("TensorBoard: ")
-            self.logger.info(
-                f"{prefix}Start with 'tensorboard --logdir {s.parent}', view at http://localhost:6006/"
-            )
-            self.tb = SummaryWriter(str(s))
-
         # W&B
         if wandb and "wandb" in self.include:
             self.opt.hyp = self.hyp  # add hyperparameters
@@ -205,10 +186,6 @@ class Loggers:
             if ni < 3:
                 f = self.save_dir / f"train_batch{ni}.jpg"  # filename
                 plot_images(imgs, targets, paths, f)
-                if ni == 0 and self.tb and not self.opt.sync_bn:
-                    log_tensorboard_graph(
-                        self.tb, model, imgsz=(self.opt.imgsz, self.opt.imgsz)
-                    )
             if ni == 10 and (self.wandb or self.clearml):
                 files = sorted(self.save_dir.glob("train*.jpg"))
                 if self.wandb:
@@ -280,10 +257,7 @@ class Loggers:
             with open(file, "a") as f:
                 f.write(s + ("%20.5g," * n % tuple([epoch] + vals)).rstrip(",") + "\n")
 
-        if self.tb:
-            for k, v in x.items():
-                self.tb.add_scalar(k, v, epoch)
-        elif self.clearml:  # log to ClearML if TensorBoard not used
+        if self.clearml:  # log to ClearML if TensorBoard not used
             for k, v in x.items():
                 title, series = k.split("/")
                 self.clearml.task.get_logger().report_scalar(title, series, v, epoch)
@@ -340,14 +314,6 @@ class Loggers:
         ]  # filter
         self.logger.info(f"Results saved to {colorstr('bold', self.save_dir)}")
 
-        if (
-            self.tb and not self.clearml
-        ):  # These images are already captured by ClearML by now, we don't want doubles
-            for f in files:
-                self.tb.add_image(
-                    f.stem, cv2.imread(str(f))[..., ::-1], epoch, dataformats="HWC"
-                )
-
         if self.wandb:
             self.wandb.log(dict(zip(self.keys[3:10], results)))
             self.wandb.log(
@@ -394,7 +360,7 @@ class GenericLogger:
         include:         loggers to include
     """
 
-    def __init__(self, opt, console_logger, include=("tb", "wandb", "comet")):
+    def __init__(self, opt, console_logger, include=("wandb", "comet")):
         # init default loggers
         self.save_dir = Path(opt.save_dir)
         self.include = include
@@ -402,15 +368,6 @@ class GenericLogger:
         self.csv = self.save_dir / "results.csv"  # CSV logger
         self.opt = opt
 
-        # TensorBoard
-        if "tb" in self.include:
-            prefix = colorstr("TensorBoard: ")
-            self.console_logger.info(
-                f"{prefix}Start with 'tensorboard --logdir {self.save_dir.parent}', view at http://localhost:6006/"
-            )
-            self.tb = SummaryWriter(str(self.save_dir))
-        else:
-            self.tb = None
         # W&B
         if wandb and "wandb" in self.include:
             self.wandb = wandb.init(
@@ -431,7 +388,7 @@ class GenericLogger:
 
     def on_train_epoch_end(self, epoch):
         if self.comet_logger:
-            self.comet_logger.on_train_epoch_end(epoch)  
+            self.comet_logger.on_train_epoch_end(epoch)
 
     def on_train_end(self, save_dir, last, best, epoch):
         if self.comet_logger:
@@ -454,10 +411,6 @@ class GenericLogger:
             with open(self.csv, "a") as f:
                 f.write(s + ("%23.5g," * n % tuple([epoch] + vals)).rstrip(",") + "\n")
 
-        if self.tb:
-            for k, v in metrics.items():
-                self.tb.add_scalar(k, v, epoch)
-
         if self.wandb:
             self.wandb.log(metrics, step=epoch)
         if self.comet_logger:
@@ -470,12 +423,6 @@ class GenericLogger:
         ]  # to Path
         files = [f for f in files if f.exists()]  # filter by exists
 
-        if self.tb:
-            for f in files:
-                self.tb.add_image(
-                    f.stem, cv2.imread(str(f))[..., ::-1], epoch, dataformats="HWC"
-                )
-
         if self.wandb:
             self.wandb.log(
                 {name: [wandb.Image(str(f), caption=f.name) for f in files]}, step=epoch
@@ -485,9 +432,7 @@ class GenericLogger:
                 self.comet_logger.log_image(f, name=f.name)
 
     def log_graph(self, model, imgsz=(640, 640)):
-        # Log model graph to all loggers
-        if self.tb:
-            log_tensorboard_graph(self.tb, model, imgsz)
+        pass
 
     def log_model(self, model_path, fitness, epoch=0):
         # Log model to all loggers
@@ -504,17 +449,7 @@ class GenericLogger:
 
 def log_tensorboard_graph(tb, model, imgsz=(640, 640)):
     # Log model graph to TensorBoard
-    try:
-        p = next(model.parameters())  # for device, type
-        imgsz = (imgsz, imgsz) if isinstance(imgsz, int) else imgsz  # expand
-        im = (
-            torch.zeros((1, 3, *imgsz)).to(p.device).type_as(p)
-        )  # input image (WARNING: must be zeros, not empty)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # suppress jit trace warning
-            tb.add_graph(torch.jit.trace(de_parallel(model), im, strict=False), [])
-    except Exception as e:
-        LOGGER.warning(f"WARNING ⚠️ TensorBoard graph visualization failure {e}")
+    pass
 
 
 def web_project_name(project):

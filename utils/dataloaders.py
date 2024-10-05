@@ -1601,7 +1601,35 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
             self.h, self.w = (size, size) if isinstance(size, int) else size
 
         def __call__(self, im):  # im = np.array HWC
-            return cv2.resize(im, (self.h, self.w), interpolation=cv2.INTER_LINEAR)
+            # return cv2.resize(im, (self.h, self.w), interpolation=cv2.INTER_LINEAR)
+            old_size = im.shape[:2]  # (height, width)
+
+            # Determine the scaling factor to fit the image within the target size
+            ratio = float(self.h) / max(old_size)
+            new_size = tuple([int(x * ratio) for x in old_size])
+
+            # Resize the image to fit within the target size
+            resized_image = cv2.resize(im, (new_size[1], new_size[0]))
+
+            # Calculate padding to center the resized image in the 224x224 frame
+            delta_w = self.w - new_size[1]
+            delta_h = self.h - new_size[0]
+            top, bottom = delta_h // 2, delta_h - (delta_h // 2)
+            left, right = delta_w // 2, delta_w - (delta_w // 2)
+
+            # Create padding color (black in this case, but can be changed)
+            color = [0, 0, 0]  # Black padding
+
+            # Apply padding to the resized image
+            return cv2.copyMakeBorder(
+                resized_image,
+                top,
+                bottom,
+                left,
+                right,
+                cv2.BORDER_CONSTANT,
+                value=color,
+            )
 
     class ToTensor:
         # YOLOv5 ToTensor class for image preprocessing, i.e. T.Compose([LetterBox(size), ToTensor()])
