@@ -393,8 +393,8 @@ def imshow_cls(
         ax[i].imshow(blocks[i].squeeze().permute((1, 2, 0)).numpy().clip(0.0, 1.0))
         ax[i].axis("off")
         if labels is not None:
-            s = names[labels[i]] + (f"—{names[pred[i]]}" if pred is not None else "")
-            ax[i].set_title(s, fontsize=5, verticalalignment="top")
+            s = names[labels[i]] + (f":{names[pred[i]]}" if pred is not None else "")
+            ax[i].set_title(s, fontsize=3, verticalalignment="top")
     plt.savefig(f, dpi=300, bbox_inches="tight")
     plt.close()
     if verbose:

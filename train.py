@@ -532,6 +532,7 @@ def main(opt, callbacks=Callbacks()):
 
     # Train
     if not opt.evolve:
+        opt.hyp
         train(opt.hyp, opt, device, callbacks)
 
     # Evolve hyperparameters (optional)
@@ -564,7 +565,7 @@ def main(opt, callbacks=Callbacks()):
             'perspective': (0, 0.0, 0.001),  # image perspective (+/- fraction), range 0-0.001
             'flipud': (1, 0.0, 1.0),  # image flip up-down (probability)
             'fliplr': (0, 0.0, 1.0),  # image flip left-right (probability)
-            'mosaic': (1, 0.0, 1.0),  # image mixup (probability)
+            'mosaic': (0, 0.0, .00),  # image mixup (probability)
             'mixup': (1, 0.0, 1.0),  # image mixup (probability)
             'copy_paste': (1, 0.0, 1.0)}  # segment copy-paste (probability)
 
