@@ -1604,6 +1604,10 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
             # return cv2.resize(im, (self.h, self.w), interpolation=cv2.INTER_LINEAR)
             old_size = im.shape[:2]  # (height, width)
 
+            # Check if the image is already the target size
+            if old_size[0] == self.h and old_size[1] == self.w:
+                return im
+
             # Determine the scaling factor to fit the image within the target size
             ratio = float(self.h) / max(old_size)
             new_size = tuple([int(x * ratio) for x in old_size])
@@ -1651,7 +1655,7 @@ def create_classification_dataloader(
     path,
     imgsz=224,
     batch_size=16,
-    augment=True,
+    augment=False,
     cache=False,
     rank=-1,
     workers=8,

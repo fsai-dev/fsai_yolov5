@@ -20,13 +20,14 @@ from utils.general import (
     check_img_size,
 )
 from utils.torch_utils import select_device
+from utils.plots import imshow_cls
 
 
 def main():
-    cropped_imgs_dir = "tmp/tp_fp_test_chips"
-    output_dir = "tmp/output"
-    weights = "tmp/pylon_tp_fp_model/epoch90.pt"
-    data_yaml = "tmp/pylon_tp_fp_model/dataset.yaml"
+    cropped_imgs_dir = "/Users/hanna/Downloads/tmp/tp_fp_test_chips"
+    output_dir = "/Users/hanna/Downloads/tmp/output"
+    weights = "/Users/hanna/Downloads/tmp/pylon_tp_fp_model/epoch90.pt"
+    data_yaml = "/Users/hanna/Downloads/tmp/pylon_tp_fp_model/dataset.yaml"
     device = "cpu"  # cuda device, i.e. 0 or 0,1,2,3 or cpu
     imgsz = (224, 224)
 
@@ -67,7 +68,6 @@ def main():
         for path, im, im0s, vid_cap, s in dataset:
             with dt[0]:
                 im = torch.Tensor(im).to(model.device)
-                im = im.half() if model.fp16 else im.float()  # uint8 to fp16/32
                 if len(im.shape) == 3:
                     im = im[None]  # expand for batch dim
 
@@ -94,14 +94,25 @@ def main():
             Path(os.path.join(output_dir, "true_positives")).mkdir(
                 parents=True, exist_ok=True
             )
+
             if prediction_class == "FALSE_POSITIVE":
                 print("Copying to false_positive directory")
-                shutil.copy(img_path, os.path.join(output_dir, "false_positives"))
+                cv2.imwrite(
+                    filename=os.path.join(
+                        output_dir, "false_positives", img_path.split("/")[-1]
+                    ),
+                    img=im0s,
+                )
 
             # If prediction_class = TRUE_POSITIVE then copy to the true_positive directory
             if prediction_class == "TRUE_POSITIVE":
                 print("Copying to true_positive directory")
-                shutil.copy(img_path, os.path.join(output_dir, "true_positives"))
+                cv2.imwrite(
+                    filename=os.path.join(
+                        output_dir, "true_positives", img_path.split("/")[-1]
+                    ),
+                    img=im0s,
+                )
 
 
 if __name__ == "__main__":

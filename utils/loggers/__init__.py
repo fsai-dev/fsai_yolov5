@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pkg_resources as pkg
 
-
+from utils.general import LOGGER, colorstr
 from utils.loggers.clearml.clearml_utils import ClearmlLogger
 from utils.loggers.wandb.wandb_utils import WandbLogger
 from utils.plots import plot_images, plot_labels, plot_results
