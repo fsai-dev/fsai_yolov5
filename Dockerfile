@@ -43,3 +43,5 @@ RUN pip install --user torch torchvision setuptools pycocotools comet_ml
 COPY ./ ./
 
 RUN pip install --user -r requirements.txt
+
+RUN git config --global --add safe.directory /code
